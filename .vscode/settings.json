@@ -1,0 +1,10 @@
+{
+    "editor.tabSize": 2,
+    "cmake.configureOnOpen": false,
+    "files.associations": {
+        "stdexcept": "cpp",
+        "deque": "cpp",
+        "string": "cpp",
+        "vector": "cpp"
+    }
+}
