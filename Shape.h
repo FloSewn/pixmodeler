@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <list>
 
 #include "Vec2.h"
 #include "olc_pixel_game_engine.h"
@@ -13,19 +14,25 @@ class ModelSpace;
 ***********************************************************/
 class Node
 {
-
 public:
-  explicit Node(Shape& s) : parent_{s} {}
-  Node(Shape& s, const Vec2f& v) : parent_{s}, coords_{v} {}
+  Node(Shape& s, int index) 
+  : parent_{s}, index_{index} {}
+  Node(Shape& s, int index, const Vec2f& v) 
+  : parent_{s}, index_{index}, coords_{v} {}
+  ~Node() {}
 
   Shape& parent() { return parent_;}
 
   Vec2f coords() const { return coords_;}
   void coords(const Vec2f& v) { coords_ = v; }
 
+  void index(int i) { index_ = i; }
+  int index() const { return index_; }
+
 private:
   Vec2f     coords_;
   Shape&    parent_;
+  int       index_;
 
 };
 
@@ -39,7 +46,8 @@ public:
   /*********************************************************
   * Constructor
   *********************************************************/
-  Shape(ModelSpace& space) : space_{space} {}
+  Shape(ModelSpace& space, int index, bool extr) 
+  : space_{space}, index_{index}, exteriror_{extr} {}
   virtual ~Shape() {}
 
   /*********************************************************
@@ -49,28 +57,38 @@ public:
   virtual void draw_nodes();
 
   /*********************************************************
-  * Update
+  * Update / Check for validity
   *********************************************************/
   virtual void update() {};
+  virtual bool valid() {};
+  virtual void move(const Vec2f& d);
 
   /*********************************************************
   * Node handling
   *********************************************************/
   virtual Node* add_node(const Vec2f& n);
   virtual Node* get_node(const Vec2f& p);
+  virtual void  rem_node(int index);
 
   /*********************************************************
-  * Setters
+  * Setters / Getters
   *********************************************************/
   void color(olc::Pixel col) { color_ = col; }
 
   void complete(bool c) { complete_ = c; }
   bool complete() const { return complete_; }
 
+  int index(int i) { index_ = i; }
+  int index() const { return index_; }
+
+  int number_of_nodes() const { return nodes_.size(); }
+
 protected:
   ModelSpace&       space_;
+  int               index_;         
+  bool              exteriror_;
   unsigned int      max_nodes_  = 0;
-  std::vector<Node> nodes_;
+  std::vector<Node*> nodes_;
   olc::Pixel        color_      = olc::GREEN; 
   bool              complete_   = false;
 

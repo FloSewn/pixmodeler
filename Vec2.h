@@ -132,7 +132,8 @@ inline std::ostream& operator<<(std::ostream &out,
 template <typename T>
 inline bool operator==(const Vec2<T>& a, const Vec2<T>& b)
 {
-  return (a.e[0]==b.e[0] && a.e[1]==b.e[1]);
+  //return (a.e[0]==b.e[0] && a.e[1]==b.e[1]);
+  return (a-b).near_zero_values();
 }
 
 // Vector-Vector addition

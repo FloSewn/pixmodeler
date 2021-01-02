@@ -53,35 +53,53 @@ bool ModelSpace::OnUserCreate()
 void ModelSpace::init_main_menu()
 {
   // Main menu structure
-  menu_["main"].dimension(1, 3);
+  menu_["main"].dimension(1, 2);
   menu_["main"]["Insert"].dimension(1,2);
   menu_["main"]["Insert"]["Exterior"].dimension(1,3);
   menu_["main"]["Insert"]["Interior"].enabled(false).dimension(1,3);
   menu_["main"]["Modify"].enabled(false).dimension(1,4);
-  menu_["main"]["Delete"].enabled(false);
 
   // Exteriror Inserts
   MenuObject& menu_12 = menu_["main"]["Insert"]["Exterior"];
   menu_12["Polygon"].callback(insert_extr_polygon_mode_cb);
-  menu_12["Square"];
-  menu_12["Rectangle"];
-  menu_12["Circle"];
+  menu_12["Square"].enabled(false);
+  menu_12["Rectangle"].enabled(false);
+  menu_12["Circle"].enabled(false);
 
   // Interior Inserts
   MenuObject& menu_11 = menu_["main"]["Insert"]["Interior"];
   menu_11["Polygon"];
-  menu_11["Square"];
-  menu_11["Rectangle"];
-  menu_11["Circle"];
+  menu_11["Square"].enabled(false);
+  menu_11["Rectangle"].enabled(false);
+  menu_11["Circle"].enabled(false);
 
   // Modifications
   MenuObject& menu_2 = menu_["main"]["Modify"];
   menu_2["Add Node"];
-  menu_2["Remove Node"];
-  menu_2["Move Node"];
-  menu_2["Move Shape"];
+  menu_2["Move Node"].callback(move_node_cb);
+  menu_2["Move Shape"].callback(move_shape_cb);
+  menu_2["Remove Node"].callback(remove_node_cb);
+  menu_2["Remove Shape"].callback(remove_shape_cb);
 
   menu_.build();
+}
+
+/***********************************************************
+* Function to initialize the main menu
+***********************************************************/
+void ModelSpace::update_main_menu()
+{
+  // Activate/deactivate menu options 
+  if (extr_shapes_.size() > 0)
+  {
+    //menu_["main"]["Insert"]["Interior"].enabled(true);
+    menu_["main"]["Modify"].enabled(true);
+  }
+  else
+  {
+    //menu_["main"]["Insert"]["Interior"].enabled(false);
+    menu_["main"]["Modify"].enabled(false);
+  }
 }
 
 /***********************************************************
@@ -97,18 +115,42 @@ bool ModelSpace::OnUserUpdate(float fElapsedTime)
   cursor_.update();
   menu_manager_.update(&menu_["main"]);
 
-  // Handle insertion of exterior polygon
-  if ( state_ == UserState::InsertExtrPolygon )
+  switch (state_)
+  {
+  case UserState::InsertExtrPolygon:
     insert_extr_polygon();
+    break;
+  case UserState::MoveNode:
+    move_node();
+    break;
+  case UserState::MoveShape:
+    move_shape();
+    break;
+  case UserState::RemoveNode:
+    remove_node();
+    break;
+  case UserState::RemoveShape:
+    remove_shape();
+    break;
+
+  default:
+    break;
+  }
+
 
   // Return to view mode
   if (GetKey(olc::Key::ESCAPE).bPressed)
   {
-    state_ = UserState::View;
-    delete temp_shape_;
-    temp_shape_    = nullptr;
-    selected_node_ = nullptr;
-    last_action_   = "View";
+    if (state_ == UserState::InsertExtrPolygon)
+      delete temp_shape_;
+
+      if (temp_shape_)
+        temp_shape_->color(olc::WHITE);
+
+      state_ = UserState::View;
+      temp_shape_    = nullptr;
+      selected_node_ = nullptr;
+      last_action_   = "View";
   }
 
   // Draw
@@ -117,8 +159,17 @@ bool ModelSpace::OnUserUpdate(float fElapsedTime)
   cursor_.draw(); 
   draw_shapes();
 
-  // Draw menus
+  // Draw and updatemenus
   menu_manager_.draw({30, 30});
+  update_main_menu();
+
+  // Draw selected node
+  if (selected_node_)
+  {
+    int sx, sy;
+    coord_to_screen(selected_node_->coords(), sx, sy);
+    FillCircle(sx, sy, 2, olc::GREEN);
+  }
 
   // Draw status bar
   DrawString(10, 10, 
@@ -132,13 +183,44 @@ bool ModelSpace::OnUserUpdate(float fElapsedTime)
 }
 
 /***********************************************************
+* Set selected node for existing shapes
+***********************************************************/
+void ModelSpace::set_selected_node()
+{
+  if (GetMouse(1).bReleased)
+  {
+    for (auto s : extr_shapes_)
+    {
+      selected_node_ = s->get_node(cursor_.coords());
+      if (selected_node_) 
+      {
+        temp_shape_ = s;
+        temp_shape_->color(olc::GREEN);
+        break;
+      }
+    }
+    for (auto s : intr_shapes_)
+    {
+      selected_node_ = s->get_node(cursor_.coords());
+      if (selected_node_)
+      {
+        temp_shape_ = s;
+        temp_shape_->color(olc::GREEN);
+        break;
+      }
+    }
+  }
+}
+
+
+/***********************************************************
 * Function to insert exterior polygonal elements
 ***********************************************************/
 void ModelSpace::insert_extr_polygon()
 {
   if ( temp_shape_ == nullptr)
   {
-    temp_shape_ = new Polygon(*this);
+    temp_shape_ = new Polygon(*this, extr_shapes_.size(), true);
   }
   else
   {
@@ -148,9 +230,138 @@ void ModelSpace::insert_extr_polygon()
     if (temp_shape_->complete())
     {
       temp_shape_->color(olc::WHITE);
-      shapes_.push_back(temp_shape_);
+      extr_shapes_.push_back(temp_shape_);
       temp_shape_ = nullptr;
     }
+  }
+}
+
+/***********************************************************
+* Function to move existing nodes
+***********************************************************/
+void ModelSpace::move_node()
+{
+  
+  if (selected_node_ == nullptr)
+  {
+    set_selected_node();
+  }
+  else 
+  {
+    Vec2f tmp_coords = selected_node_->coords();
+    selected_node_->coords(cursor_.coords());
+
+    // Check validity of new node
+    if (!temp_shape_->valid())
+      selected_node_->coords(tmp_coords);
+
+    // Release
+    if (GetMouse(1).bReleased)
+    {
+      temp_shape_->color(olc::WHITE);
+      selected_node_ = nullptr;
+      temp_shape_ = nullptr;
+    }
+  }
+}
+
+
+/***********************************************************
+* Function to move existing shapes
+***********************************************************/
+void ModelSpace::move_shape()
+{
+  if (selected_node_ == nullptr)
+  {
+    set_selected_node();
+  }
+  else
+  {
+    Vec2f node_coords = selected_node_->coords();
+    Vec2f delta = cursor_.coords() - node_coords;
+    
+    if (temp_shape_)
+      temp_shape_->move(delta);
+
+    // Release
+    if (GetMouse(1).bReleased)
+    {
+      temp_shape_->color(olc::WHITE);
+      selected_node_ = nullptr;
+      temp_shape_ = nullptr;
+    }
+  }
+}
+
+/***********************************************************
+* Function to remove existing shapes
+***********************************************************/
+void ModelSpace::remove_shape()
+{
+  if (selected_node_ == nullptr)
+  {
+    set_selected_node();
+  }
+  else
+  {
+    // Remove shape and update following shape indices
+    if (GetMouse(1).bReleased &&
+        cursor_.coords() == selected_node_->coords())
+    {
+      int index = temp_shape_->index();
+      extr_shapes_.erase(extr_shapes_.begin() + index);
+
+      for (int i = index; i < extr_shapes_.size(); i++)
+        extr_shapes_[i]->index(i);
+
+      selected_node_ = nullptr;
+      temp_shape_ = nullptr;
+    }
+    else if (GetMouse(1).bReleased)
+    {
+      selected_node_ = nullptr;
+      temp_shape_->color(olc::WHITE);
+      temp_shape_ = nullptr;
+    }
+    
+  }
+}
+
+/***********************************************************
+* Function to remove existing nodes
+***********************************************************/
+void ModelSpace::remove_node()
+{
+  if (selected_node_ == nullptr)
+  {
+    set_selected_node();
+  }
+  else
+  {
+    // Remove node and update following nodes indices
+    if (GetMouse(1).bReleased && 
+        cursor_.coords() == selected_node_->coords())
+    {
+      int n_nodes = temp_shape_->number_of_nodes();
+
+      if ( n_nodes > 3)
+      {
+        int index = selected_node_->index();
+        temp_shape_->rem_node(index);
+        selected_node_ = nullptr;
+        temp_shape_->color(olc::WHITE);
+        temp_shape_ = nullptr;
+      }
+      else
+        remove_shape();
+    }
+    else if (GetMouse(1).bReleased)
+    {
+      selected_node_ = nullptr;
+      temp_shape_->color(olc::WHITE);
+      temp_shape_ = nullptr;
+    }
+    
   }
 }
 
@@ -210,8 +421,8 @@ void ModelSpace::draw_shapes()
     temp_shape_->draw_nodes();
   }
 
-  // Draw all shapes
-  for (auto s : shapes_)
+  // Draw exterior shapes
+  for (auto s : extr_shapes_)
   {
     s->draw();
     s->draw_nodes();
@@ -224,5 +435,41 @@ void ModelSpace::draw_shapes()
 void insert_extr_polygon_mode_cb(ModelSpace& sp, MenuObject& mo)
 {
   sp.state( UserState::InsertExtrPolygon );
-  sp.last_action( "Insert exterior polygon");
+  sp.last_action( "Insert exterior polygon" );
+}
+
+/***********************************************************
+* Callback function for moving nodes
+***********************************************************/
+void move_node_cb(ModelSpace& sp, MenuObject& mo)
+{
+  sp.state( UserState::MoveNode );
+  sp.last_action( "Move node" );
+}
+
+/***********************************************************
+* Callback function for moving shapes
+***********************************************************/
+void move_shape_cb(ModelSpace& sp, MenuObject& mo)
+{
+  sp.state( UserState::MoveShape );
+  sp.last_action( "Move shape" );
+}
+
+/***********************************************************
+* Callback function for removing shapes
+***********************************************************/
+void remove_shape_cb(ModelSpace& sp, MenuObject& mo)
+{
+  sp.state( UserState::RemoveShape );
+  sp.last_action( "Remove shape" );
+}
+
+/***********************************************************
+* Callback function for removing nodes
+***********************************************************/
+void remove_node_cb(ModelSpace& sp, MenuObject& mo)
+{
+  sp.state( UserState::RemoveNode );
+  sp.last_action( "Remove node" );
 }

@@ -14,7 +14,11 @@
 ***********************************************************/
 enum class UserState {
   View,
-  InsertExtrPolygon
+  InsertExtrPolygon,
+  MoveNode,
+  MoveShape,
+  RemoveShape,
+  RemoveNode
 };
 
 /***********************************************************
@@ -32,7 +36,10 @@ public:
   // Destructor
   ~ModelSpace()
   {
-    for (auto s: shapes_)
+    for (auto s: extr_shapes_)
+      delete s;
+
+    for (auto s: intr_shapes_)
       delete s;
   }
 
@@ -50,13 +57,15 @@ public:
   float min_scale() const { return min_scale_; }
   float max_scale() const { return max_scale_; }
 
-  // Initialize the main menu
+  // Main menu
   void init_main_menu();
+  void update_main_menu();
 
   // PixelEngine functions
   bool OnUserCreate() override;
   bool OnUserUpdate(float fElapsedTime) override; 
 
+  // Getters / Setters
   UserState state() { return state_; }
   void state(UserState s) { state_ = s; }
 
@@ -69,9 +78,12 @@ public:
   void last_action(std::string s) {last_action_ = s; }
   std::string& last_action() { return last_action_; }
 
-
-  // Insertion functions
+  // Shape insertion functions
   void insert_extr_polygon(); 
+  void move_node(); 
+  void remove_node(); 
+  void move_shape();
+  void remove_shape();
 
 
 private:
@@ -89,7 +101,8 @@ private:
   Node*   selected_node_  = nullptr;
   Shape*  temp_shape_     = nullptr;
 
-  std::vector<Shape*> shapes_;
+  std::vector<Shape*> extr_shapes_;
+  std::vector<Shape*> intr_shapes_;
 
   float   scale_          = 50.0f;
   float   max_scale_      = 100.0f;
@@ -100,6 +113,7 @@ private:
   void pan_and_zoom();
   void draw_background();
   void draw_shapes();
+  void set_selected_node();
 
 };
 
@@ -108,3 +122,7 @@ private:
 * Menu callback functions
 ***********************************************************/
 void insert_extr_polygon_mode_cb(ModelSpace& sp, MenuObject& mo);
+void move_node_cb(ModelSpace& sp, MenuObject& mo);
+void move_shape_cb(ModelSpace& sp, MenuObject& mo);
+void remove_shape_cb(ModelSpace& sp, MenuObject& mo);
+void remove_node_cb(ModelSpace& sp, MenuObject& mo);
