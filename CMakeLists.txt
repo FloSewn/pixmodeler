@@ -14,7 +14,6 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
 # Define the main module, which also holds the executable
 add_executable(cad_tool
                Shape.cpp
-               Polygon.cpp
                Grid.cpp
                Cursor.cpp
                Menu.cpp

@@ -15,6 +15,11 @@ class ModelSpace;
 class Node
 {
 public:
+  enum class State {
+    Visited,
+    Unvisited
+  };
+
   Node(Shape& s, int index) 
   : parent_{s}, index_{index} {}
   Node(Shape& s, int index, const Vec2f& v) 
@@ -29,10 +34,14 @@ public:
   void index(int i) { index_ = i; }
   int index() const { return index_; }
 
+  void state(State s) { state_ = s; }
+  State state() { return state_; }
+
 private:
   Vec2f     coords_;
   Shape&    parent_;
   int       index_;
+  State     state_ = State::Unvisited;
 
 };
 
@@ -53,22 +62,32 @@ public:
   /*********************************************************
   * Drawing  
   *********************************************************/
-  virtual void draw() = 0;  
+  virtual void draw();  
   virtual void draw_nodes();
 
   /*********************************************************
   * Update / Check for validity
   *********************************************************/
-  virtual void update() {};
-  virtual bool valid() {};
+  virtual bool valid();
   virtual void move(const Vec2f& d);
 
   /*********************************************************
   * Node handling
   *********************************************************/
   virtual Node* add_node(const Vec2f& n);
+  virtual Node* add_node(int i, const Vec2f& n);
   virtual Node* get_node(const Vec2f& p);
+  virtual Node* get_node(int i);
   virtual void  rem_node(int index);
+  virtual void  set_orientation(Orient orient);
+  virtual bool  contains_node(const Vec2f& n);
+
+  /*********************************************************
+  * Interaction with other shapes
+  *********************************************************/
+  virtual bool contains_shape(Shape *s);
+  virtual Shape* merge(Shape* s);
+  virtual std::vector<Shape*> clip(Shape* s);
 
   /*********************************************************
   * Setters / Getters
@@ -82,6 +101,8 @@ public:
   int index() const { return index_; }
 
   int number_of_nodes() const { return nodes_.size(); }
+
+  bool exterior() const { return exteriror_; }
 
 protected:
   ModelSpace&       space_;

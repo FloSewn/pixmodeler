@@ -8,6 +8,7 @@
 int main()
 {
   ModelSpace app;
+  //if (app.Construct(1200, 800, 1, 1))
   if (app.Construct(384, 240, 4, 4))
     app.Start();
   return 0;

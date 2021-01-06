@@ -63,28 +63,28 @@ public:
   }
 
   // Vector-scalar addition
-  Vec2<T>& operator+=(const double t)
+  Vec2<T>& operator+=(const T t)
   {
     e[0] += t;
     e[1] += t;
     return *this;
   }
   // Vector-scalar substraction
-  Vec2<T>& operator-=(const double t)
+  Vec2<T>& operator-=(const T t)
   {
     e[0] -= t;
     e[1] -= t;
     return *this;
   }
   // Vector-scalar multiplication
-  Vec2<T>& operator*=(const double t)
+  Vec2<T>& operator*=(const T t)
   {
     e[0] *= t;
     e[1] *= t;
     return *this;
   }
   // Vector-scalar division
-  Vec2<T>& operator/=(const double t)
+  Vec2<T>& operator/=(const T t)
   {
     return *this *= 1./t;
   }
@@ -135,6 +135,12 @@ inline bool operator==(const Vec2<T>& a, const Vec2<T>& b)
   //return (a.e[0]==b.e[0] && a.e[1]==b.e[1]);
   return (a-b).near_zero_values();
 }
+// Un-Equality
+template <typename T>
+inline bool operator!=(const Vec2<T>& a, const Vec2<T>& b)
+{
+  return !(a==b); 
+}
 
 // Vector-Vector addition
 template <typename T>
@@ -164,25 +170,25 @@ inline Vec2<T> operator/(const Vec2<T> &u,const Vec2<T> &v)
 
 // Vector-scalar addition
 template <typename T>
-inline Vec2<T> operator+(const Vec2<T> &u, const double v)
+inline Vec2<T> operator+(const Vec2<T> &u, const T v)
 {
   return Vec2<T>(u.e[0]+v, u.e[1]+v);
 }
 // Vector-scalar substraction
 template <typename T>
-inline Vec2<T> operator-(const Vec2<T> &u, const double v)
+inline Vec2<T> operator-(const Vec2<T> &u, const T v)
 {
   return Vec2<T>(u.e[0]-v, u.e[1]-v);
 }
 // Vector-scalar multiplication
 template <typename T>
-inline Vec2<T> operator*(const Vec2<T> &u, const double v)
+inline Vec2<T> operator*(const Vec2<T> &u, const T v)
 {
   return Vec2<T>(u.e[0]*v, u.e[1]*v);
 }
 // Vector-scalar division
 template <typename T>
-inline Vec2<T> operator/(const Vec2<T> &u, const double v)
+inline Vec2<T> operator/(const Vec2<T> &u, const T v)
 {
   return Vec2<T>(u.e[0]/v, u.e[1]/v);
 }
@@ -257,9 +263,37 @@ static inline Orient orientation(const Vec2<T>& p,
     return Orient::CL;
 
   if ( area2 > 0)
-    return Orient::CCW;
+    return Orient::CW;
   
-  return Orient::CW;
+  return Orient::CCW;
+}
+
+/*----------------------------------------------------------
+| Check if point r lies to the left of segment (p,q) 
+----------------------------------------------------------*/
+template <typename T>
+static inline bool is_left(const Vec2<T>& p,
+                           const Vec2<T>& q,
+                           const Vec2<T>& r)
+{
+  if (orientation(p,q,r) == Orient::CCW)
+    return true;
+  return false;
+}
+
+/*----------------------------------------------------------
+| Check if point r lies to the left of segment (p,q) o
+| or on the segment
+----------------------------------------------------------*/
+template <typename T>
+static inline bool is_lefton(const Vec2<T>& p,
+                             const Vec2<T>& q,
+                             const Vec2<T>& r)
+{
+  if (orientation(p,q,r) == Orient::CW)
+    return false;
+
+  return true;
 }
 
 /*----------------------------------------------------------
@@ -273,14 +307,36 @@ static inline bool in_segment(const Vec2<T>& p,
   if (orientation(p,q,r) != Orient::CL)
     return false;
 
-  Vec2<T> min_bb = bbox_min(p, q);
-  Vec2<T> max_bb = bbox_min(p, q);
+  //Vec2<T> min_bb = bbox_min(p, q);
+  //Vec2<T> max_bb = bbox_min(p, q);
 
   const Vec2<T> d_qp  = q-p;
   const Vec2<T> d_rp  = r-p;
   const T t = dot(d_rp, d_qp) / d_qp.length_squared();
 
   if ( t > 0 && t < 1)
+    return true;
+  
+  return false;
+}
+
+/*----------------------------------------------------------
+| Check if point r lies within a segment (p,q) or on
+| its endings 
+----------------------------------------------------------*/
+template <typename T>
+static inline bool in_on_segment(const Vec2<T>& p,
+                                 const Vec2<T>& q,
+                                 const Vec2<T>& r)
+{
+  if (orientation(p,q,r) != Orient::CL)
+    return false;
+
+  const Vec2<T> d_qp  = q-p;
+  const Vec2<T> d_rp  = r-p;
+  const T t = dot(d_rp, d_qp) / d_qp.length_squared();
+
+  if ( t >= 0 && t <= 1)
     return true;
   
   return false;

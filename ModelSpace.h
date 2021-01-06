@@ -18,7 +18,10 @@ enum class UserState {
   MoveNode,
   MoveShape,
   RemoveShape,
-  RemoveNode
+  RemoveNode,
+  InsertNode,
+  MergeShapes,
+  ClipShape
 };
 
 /***********************************************************
@@ -78,13 +81,23 @@ public:
   void last_action(std::string s) {last_action_ = s; }
   std::string& last_action() { return last_action_; }
 
+  int number_of_extr_shapes() const 
+  { return extr_shapes_.size(); }
+  int number_of_intr_shapes() const 
+  { return intr_shapes_.size(); }
+
+  void reset();
+
   // Shape insertion functions
   void insert_extr_polygon(); 
+
   void move_node(); 
   void remove_node(); 
   void move_shape();
   void remove_shape();
-
+  void insert_node();
+  void merge_shapes();
+  void clip_shape();
 
 private:
   Grid        grid_;
@@ -114,6 +127,7 @@ private:
   void draw_background();
   void draw_shapes();
   void set_selected_node();
+  Shape* pick_shape(const Vec2f& c, bool extr_shape);
 
 };
 
@@ -126,3 +140,6 @@ void move_node_cb(ModelSpace& sp, MenuObject& mo);
 void move_shape_cb(ModelSpace& sp, MenuObject& mo);
 void remove_shape_cb(ModelSpace& sp, MenuObject& mo);
 void remove_node_cb(ModelSpace& sp, MenuObject& mo);
+void insert_node_cb(ModelSpace& sp, MenuObject& mo);
+void merge_shapes_cb(ModelSpace& sp, MenuObject& mo);
+void clip_shape_cb(ModelSpace& sp, MenuObject& mo);
