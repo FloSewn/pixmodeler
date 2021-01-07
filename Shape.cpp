@@ -260,7 +260,6 @@ std::vector<Shape*> Shape::clip(Shape* s)
   // Get intersection points and mark them as 
   // entries / exits
   std::vector<Vec2f> intersecs;
-  std::vector<bool> is_entry;
   std::vector<int> t_intersec_index;
   std::vector<int> s_intersec_index;
 
@@ -340,18 +339,6 @@ std::vector<Shape*> Shape::clip(Shape* s)
         // insertion method
         t_intersec_index.push_back( (i+1) );
         s_intersec_index.push_back( (j+1) );
-
-        // Determine entries / exits 
-        if (is_entry.size() == 0)
-          is_entry.push_back( t > geometry_small ? true : false);
-        else
-          is_entry.push_back(!is_entry[is_entry.size()-1]);
-
-        // if intersection is on the segment of interest, 
-        // it is always treated as an exit
-        if (  in_segment(t_a,t_b,m_ts) )
-          is_entry[is_entry.size()-1] = false;
-          
       }
     }
   }
@@ -360,33 +347,30 @@ std::vector<Shape*> Shape::clip(Shape* s)
   // t_list / s_list: contain point coordinates
   // t_intersec / s_intersec: true, if point coordinate is 
   //                          an intersection
-  // t_entry / s_entry: +1 if point is entry
-  //                     0 if original point
-  //                    -1 of point is exit
   std::vector<Vec2f> t_list;
   std::vector<Vec2f> s_list;
   std::vector<bool> t_intersec;
   std::vector<bool> s_intersec;
-  std::vector<int> t_entry;
+  std::vector<int> t_link;
+  std::vector<int> s_link;
 
   // Init with original points
   for (int i = 0; i < Nt; ++i)
   {
     t_list.push_back(this->get_node(i)->coords());
     t_intersec.push_back(false);
-    t_entry.push_back(0);
   }
 
   // Add intersection points
   for (int i = 0; i < intersecs.size(); ++i)
   {
+    // No modulo operator needed, since t is 
+    // gathered sequentially
     t_intersec_index[i] += i;
     t_list.insert(t_list.begin()+t_intersec_index[i],
                   intersecs[i]);
     t_intersec.insert(t_intersec.begin()+t_intersec_index[i],
                       true);
-    t_entry.insert(t_entry.begin()+t_intersec_index[i],
-                  is_entry[i] ? 1 : -1);
   }
 
   // Remove duplicates
@@ -398,13 +382,9 @@ std::vector<Shape*> Shape::clip(Shape* s)
     if (t_list[i] == t_list[i_next])
     {
       if (t_intersec[i])
-      {
         t_intersec[i_next] = t_intersec[i];
-        t_entry[i_next] = t_entry[i];
-      }
       t_list.erase(t_list.begin()+i);
       t_intersec.erase(t_intersec.begin()+i);
-      t_entry.erase(t_entry.begin()+i);
     }
   }
 
@@ -416,7 +396,9 @@ std::vector<Shape*> Shape::clip(Shape* s)
 
   for (int i = 0; i < intersecs.size(); ++i)
   {
-    s_intersec_index[i] += i;
+    // The modulo operator is needed, because s is not 
+    // gathered sequentially (in contrast to t)
+    s_intersec_index[i] = (s_intersec_index[i]+i)%s_list.size();
     s_list.insert(s_list.begin()+s_intersec_index[i],
                   intersecs[i]);
     s_intersec.insert(s_intersec.begin()+s_intersec_index[i],
@@ -438,6 +420,21 @@ std::vector<Shape*> Shape::clip(Shape* s)
     }
   }
 
+  // Create links between lists
+  for (int i = 0; i < t_list.size(); ++i)
+    t_link.push_back(-1);
+  for (int i = 0; i < s_list.size(); ++i)
+    s_link.push_back(-1);
+
+  // Bad way: O(n^2) --> improve!
+  for (int i = 0; i < t_list.size(); ++i)
+    if (t_intersec[i])
+      for (int j = 0; j < s_list.size(); ++j)
+        if ( t_list[i] == s_list[j] )
+        {
+          t_link[i] = j;
+          s_link[j] = i;
+        }
   
   Nt = t_list.size();
   Ns = s_list.size();
@@ -448,12 +445,13 @@ std::vector<Shape*> Shape::clip(Shape* s)
   for (int i = 0; i < Nt; i++)
     std::cout << "Index: " << i << " - " << t_list[i] 
       << " - intersection: " << t_intersec[i] 
-      << " - entry(1)/exit(-1): " << t_entry[i] << "\n";
+      << " - link: " << t_link[i] << "\n";
 
   std::cout << "\nClipping shape: \n";
   for (int i = 0; i < Ns; i++)
     std::cout << "Index: " << i << " - " << s_list[i] 
-      << " - intersection: " << s_intersec[i]  << "\n";
+      << " - intersection: " << s_intersec[i]  
+      << " - link: " << s_link[i] << "\n";
   
   return new_shapes;
 }
