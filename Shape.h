@@ -6,8 +6,49 @@
 #include "Vec2.h"
 #include "olc_pixel_game_engine.h"
 
+
+
 class Shape;
 class ModelSpace;
+
+
+/***********************************************************
+* Structure to handle the data for polygon intersection
+***********************************************************/
+struct IntersectData
+{
+  // t_list / b_list: contain point coordinates
+  std::vector<Vec2f> t_list;
+  std::vector<Vec2f> b_list;
+
+  // t_intersec / b_intersec: true, if point coordinate is 
+  //                          an intersection
+  std::vector<bool>  t_intersec;
+  std::vector<bool>  b_intersec;
+
+  // t_link / b_link : link to point list of other polygon
+  //                   at intersection points
+  //                   = -1 if no intersection
+  std::vector<int>   t_link;
+  std::vector<int>   b_link;
+
+  // Poly lengths
+  int Nt;
+  int Nb;
+
+};
+
+/***********************************************************
+* Weiler-Atherthon algorithm for the estimation of polygon
+* intersections
+* This function takes as input argument a top shape t and a
+* bottom shape b. It estimates the intersections between 
+* t and b and creates the respective point lists, and
+* intersection links, which can be used to construct 
+* the union or cuttings of both polygons.
+***********************************************************/
+IntersectData* prepare_poly_intersection(Shape* t, Shape *b);
+
 
 /***********************************************************
 * This class defines a node from which shapes are made of 

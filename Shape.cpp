@@ -9,6 +9,202 @@
 
 
 /***********************************************************
+* Weiler-Atherthon algorithm for the estimation of polygon
+* intersections
+* This function takes as input argument a top shape t and a
+* bottom shape b. It estimates the intersections between 
+* t and b and creates the respective point lists, and
+* intersection links, which can be used to construct 
+* the union or cuttings of both polygons.
+* 
+* References: 
+* https://www.geeksforgeeks.org/weiler-atherton-polygon-clipping-algorithm/
+***********************************************************/
+IntersectData* prepare_poly_intersection(Shape* t, Shape *b)
+{
+  int Nt = t->number_of_nodes();
+  int Nb = b->number_of_nodes();
+
+  std::vector<Vec2f> intersecs;
+  std::vector<int> t_intersec_index;
+  std::vector<int> b_intersec_index;
+
+  for (int i = 0; i < Nt; ++i)
+  {
+    Vec2f t_1 = t->get_node(i)->coords();
+    Vec2f t_2 = t->get_node((i+1)%Nt)->coords();
+
+    for (int j = 0; j < Nb; ++j)
+    {
+      Vec2f b_1 = b->get_node(j)->coords();
+      Vec2f b_2 = b->get_node((j+1)%Nb)->coords();
+
+      /*----------------------------------------------------
+      | Check for intersections
+      ----------------------------------------------------*/
+      bool intersect = false;
+
+      Orient o1 = orientation(t_1, t_2, b_1);
+      Orient o2 = orientation(t_1, t_2, b_2);
+      Orient o3 = orientation(b_1, b_2, t_1);
+      Orient o4 = orientation(b_1, b_2, t_2);
+
+      if (  ( (o1 == Orient::CCW && o2 == Orient::CW ) ||
+              (o1 == Orient::CW  && o2 == Orient::CCW) ) 
+        &&  ( (o3 == Orient::CCW && o4 == Orient::CW ) ||
+              (o3 == Orient::CW  && o4 == Orient::CCW) ) )
+      {
+        intersect = true;
+      }
+
+      // (t_1,t_2) and b_1 are collinear 
+      // and b_2 lies on segment (t_1,t_2)
+      if ( (o1 == Orient::CL) && in_on_segment(t_1,t_2,b_1) )
+        intersect = true;
+      // (t_1,t_2) and b_2 are collinear 
+      // and b_1 lies on segment (t_1,t_2)
+      if ( (o2 == Orient::CL) && in_on_segment(t_1,t_2,b_2) )
+        intersect = true;
+      // (b_1,b_2) and t_1 are collinear 
+      // and t_2 lies on segment (b_1,b_2)
+      if ( (o3 == Orient::CL) && in_on_segment(b_1,b_2,t_1) )
+        intersect = true;
+      // (b_1,b_2) and t_1 are collinear 
+      // and t_2 lies on segment (b_1,b_2)
+      if ( (o4 == Orient::CL) && in_on_segment(b_1,b_2,t_2) )
+        intersect = true;
+
+      /*----------------------------------------------------
+      | Intersection detected
+      ----------------------------------------------------*/
+      if ( intersect )
+      {
+        // Compute point of intersection
+        Vec2f dt = t_2 - t_1;
+        Vec2f db = b_2 - b_1;
+        Vec2f tb = b_1 - t_1;
+        float d = cross(dt, db);
+        if (fabs(d) < geometry_small)
+          continue;
+
+        float t = cross( tb, db) / d;
+        Vec2f m_ts = t_1 + dt * t;
+
+        bool already_found = false;
+        for (auto ints : intersecs)
+          if (m_ts == ints)
+            already_found = true;
+        
+        if (already_found)
+          continue;
+
+        intersecs.push_back(m_ts);
+
+        // Push back indices of line start
+        t_intersec_index.push_back( i ); 
+        b_intersec_index.push_back( j ); 
+      }
+    }
+  }
+
+  // No intersections found
+  if (intersecs.size() == 0)
+    return nullptr;
+  
+  // Create point lists that contain the intersection points
+  IntersectData* data = new IntersectData();
+
+  // Init with original points and add intersections
+  for (int i = 0; i < Nt; ++i)
+  {
+    data->t_list.push_back(t->get_node(i)->coords());
+    data->t_intersec.push_back(false);
+
+    for (int j = 0; j < intersecs.size(); ++j)
+      if (t_intersec_index[j] == i)
+      {
+        data->t_list.push_back(intersecs[j]);
+        data->t_intersec.push_back(true);
+      }
+  }
+
+  // Remove duplicates
+  for (int i = data->t_list.size()-1; i >= 0; --i)
+    for (int j = i-1; j >= 0; --j)
+      if (data->t_list[i] == data->t_list[j])
+      {
+        if (data->t_intersec[i])
+          data->t_intersec[j] = data->t_intersec[i];
+        data->t_list.erase(data->t_list.begin()+i);
+        data->t_intersec.erase(data->t_intersec.begin()+i);
+      }
+
+
+  // Init with original points and add intersections
+  for (int i = 0; i < Nb; ++i)
+  {
+    data->b_list.push_back(b->get_node(i)->coords());
+    data->b_intersec.push_back(false);
+
+    for (int j = 0; j < intersecs.size(); ++j)
+      if (b_intersec_index[j] == i)
+      {
+        data->b_list.push_back(intersecs[j]);
+        data->b_intersec.push_back(true);
+      }
+  }
+
+  // Remove duplicates
+  for (int i = data->b_list.size()-1; i >= 0; --i)
+    for (int j = i-1; j >= 0; --j)
+      if (data->b_list[i] == data->b_list[j])
+      {
+        if (data->b_intersec[i])
+          data->b_intersec[j] = data->b_intersec[i];
+        data->b_list.erase(data->b_list.begin()+i);
+        data->b_intersec.erase(data->b_intersec.begin()+i);
+      }
+
+  // Create links between lists
+  for (int i = 0; i < data->t_list.size(); ++i)
+    data->t_link.push_back(-1);
+  for (int i = 0; i < data->b_list.size(); ++i)
+    data->b_link.push_back(-1);
+
+  // Bad way: O(n^2) --> improve!
+  for (int i = 0; i < data->t_list.size(); ++i)
+    if (data->t_intersec[i])
+      for (int j = 0; j < data->b_list.size(); ++j)
+        if ( data->t_list[i] == data->b_list[j] )
+        {
+          data->t_link[i] = j;
+          data->b_link[j] = i;
+        }
+
+  data->Nt = data->t_list.size();
+  data->Nb = data->b_list.size();
+
+  // Now start with algorithm and create new polygons
+  std::cout << std::fixed << std::setprecision(2);
+  std::cout << "\n--- Top shape ---\n";
+  for (int i = 0; i < data->Nt; i++)
+    std::cout << "Index: " << i << " - " << data->t_list[i] 
+      << " - intersection: " << data->t_intersec[i] 
+      << " - link: " << data->t_link[i] << "\n";
+
+  std::cout << "\n--- Bottom shape ---\n";
+  for (int i = 0; i < data->Nb; i++)
+    std::cout << "Index: " << i << " - " << data->b_list[i] 
+      << " - intersection: " << data->b_intersec[i]  
+      << " - link: " << data->b_link[i] << "\n";
+
+ return data;
+}
+
+
+
+
+/***********************************************************
 * Function to draw the nodes of a shape
 ***********************************************************/
 void Shape::draw_nodes()
@@ -228,12 +424,8 @@ bool Shape::contains_shape(Shape* s)
 }
 
 /***********************************************************
-* Function to clip this shape on another shape s.
+* Function to clip this shape on another shape b.
 * Returns pointer to a vector of all resulting new shapes
-* --> Weiler-Atherton Algorithm
-* 
-* References: 
-* https://www.geeksforgeeks.org/weiler-atherton-polygon-clipping-algorithm/
 ***********************************************************/
 std::vector<Shape*> Shape::clip(Shape* s)
 {
@@ -252,187 +444,7 @@ std::vector<Shape*> Shape::clip(Shape* s)
   | Find all intersection points and mark them as 
   | entering or exiting
   --------------------------------------------------------*/
-  int Nt = this->number_of_nodes();
-  int Ns = s->number_of_nodes();
-
-  // Get intersection points and mark them as 
-  // entries / exits
-  std::vector<Vec2f> intersecs;
-  std::vector<int> t_intersec_index;
-  std::vector<int> s_intersec_index;
-
-  for (int i = 0; i < Nt; ++i)
-  {
-    Vec2f t_a = this->get_node(i)->coords();
-    Vec2f t_b = this->get_node((i+1)%Nt)->coords();
-
-    for (int j = 0; j < Ns; ++j)
-    {
-      Vec2f s_a = s->get_node(j)->coords();
-      Vec2f s_b = s->get_node((j+1)%Ns)->coords();
-
-      /*----------------------------------------------------
-      | Check for intersections
-      ----------------------------------------------------*/
-      bool intersect = false;
-
-      Orient o1 = orientation(t_a, t_b, s_a);
-      Orient o2 = orientation(t_a, t_b, s_b);
-      Orient o3 = orientation(s_a, s_b, t_a);
-      Orient o4 = orientation(s_a, s_b, t_b);
-
-      if (  ( (o1 == Orient::CCW && o2 == Orient::CW ) ||
-              (o1 == Orient::CW  && o2 == Orient::CCW) ) 
-        &&  ( (o3 == Orient::CCW && o4 == Orient::CW ) ||
-              (o3 == Orient::CW  && o4 == Orient::CCW) ) )
-      {
-        intersect = true;
-      }
-
-      // (t_a,t_b) and s_a are collinear 
-      // and s_b lies on segment (t_a,t_b)
-      if ( (o1 == Orient::CL) && in_on_segment(t_a,t_b,s_a) )
-        intersect = true;
-      // (t_a,t_b) and s_b are collinear 
-      // and s_a lies on segment (t_a,t_b)
-      if ( (o2 == Orient::CL) && in_on_segment(t_a,t_b,s_b) )
-        intersect = true;
-      // (s_a,s_b) and t_a are collinear 
-      // and t_b lies on segment (s_a,s_b)
-      if ( (o3 == Orient::CL) && in_on_segment(s_a,s_b,t_a) )
-        intersect = true;
-      // (s_a,s_b) and t_a are collinear 
-      // and t_b lies on segment (s_a,s_b)
-      if ( (o4 == Orient::CL) && in_on_segment(s_a,s_b,t_b) )
-        intersect = true;
-
-      /*----------------------------------------------------
-      | Intersection detected
-      ----------------------------------------------------*/
-      if ( intersect )
-      {
-        // Compute point of intersection
-        Vec2f dt = t_b - t_a;
-        Vec2f ds = s_b - s_a;
-        Vec2f da = s_a - t_a;
-        float d = cross(dt, ds);
-        if (fabs(d) < geometry_small)
-          continue;
-
-        float t = cross( da, ds) / d;
-        Vec2f m_ts = t_a + dt * t;
-
-        bool already_found = false;
-        for (auto ints : intersecs)
-          if (m_ts == ints)
-            already_found = true;
-        
-        if (already_found)
-          continue;
-
-        intersecs.push_back(m_ts);
-
-        // Push back indices of line start
-        t_intersec_index.push_back( i ); 
-        s_intersec_index.push_back( j ); 
-      }
-    }
-  }
-  
-  // Make point lists that contain the intersection points
-  // t_list / s_list: contain point coordinates
-  // t_intersec / s_intersec: true, if point coordinate is 
-  //                          an intersection
-  std::vector<Vec2f> t_list;
-  std::vector<Vec2f> s_list;
-  std::vector<bool> t_intersec;
-  std::vector<bool> s_intersec;
-  std::vector<int> t_link;
-  std::vector<int> s_link;
-
-  // Init with original points and add intersections
-  for (int i = 0; i < Nt; ++i)
-  {
-    t_list.push_back(this->get_node(i)->coords());
-    t_intersec.push_back(false);
-
-    for (int j = 0; j < intersecs.size(); ++j)
-      if (t_intersec_index[j] == i)
-      {
-        t_list.push_back(intersecs[j]);
-        t_intersec.push_back(true);
-      }
-  }
-
-  // Remove duplicates
-  for (int i = t_list.size()-1; i >= 0; --i)
-    for (int j = i-1; j >= 0; --j)
-      if (t_list[i] == t_list[j])
-      {
-        if (t_intersec[i])
-          t_intersec[j] = t_intersec[i];
-        t_list.erase(t_list.begin()+i);
-        t_intersec.erase(t_intersec.begin()+i);
-      }
-
-
-  // Init with original points and add intersections
-  for (int i = 0; i < Ns; ++i)
-  {
-    s_list.push_back(s->get_node(i)->coords());
-    s_intersec.push_back(false);
-
-    for (int j = 0; j < intersecs.size(); ++j)
-      if (s_intersec_index[j] == i)
-      {
-        s_list.push_back(intersecs[j]);
-        s_intersec.push_back(true);
-      }
-  }
-
-  // Remove duplicates
-  for (int i = s_list.size()-1; i >= 0; --i)
-    for (int j = i-1; j >= 0; --j)
-      if (s_list[i] == s_list[j])
-      {
-        if (s_intersec[i])
-          s_intersec[j] = s_intersec[i];
-        s_list.erase(s_list.begin()+i);
-        s_intersec.erase(s_intersec.begin()+i);
-      }
-
-  // Create links between lists
-  for (int i = 0; i < t_list.size(); ++i)
-    t_link.push_back(-1);
-  for (int i = 0; i < s_list.size(); ++i)
-    s_link.push_back(-1);
-
-  // Bad way: O(n^2) --> improve!
-  for (int i = 0; i < t_list.size(); ++i)
-    if (t_intersec[i])
-      for (int j = 0; j < s_list.size(); ++j)
-        if ( t_list[i] == s_list[j] )
-        {
-          t_link[i] = j;
-          s_link[j] = i;
-        }
-  
-  Nt = t_list.size();
-  Ns = s_list.size();
-
-  // Now start with algorithm and create new polygons
-  std::cout << std::fixed << std::setprecision(2);
-  std::cout << "Shape that gets clipped: \n";
-  for (int i = 0; i < Nt; i++)
-    std::cout << "Index: " << i << " - " << t_list[i] 
-      << " - intersection: " << t_intersec[i] 
-      << " - link: " << t_link[i] << "\n";
-
-  std::cout << "\nClipping shape: \n";
-  for (int i = 0; i < Ns; i++)
-    std::cout << "Index: " << i << " - " << s_list[i] 
-      << " - intersection: " << s_intersec[i]  
-      << " - link: " << s_link[i] << "\n";
+  IntersectData* intersec = prepare_poly_intersection(this, s);
   
   return new_shapes;
 }
