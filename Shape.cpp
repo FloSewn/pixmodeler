@@ -237,7 +237,6 @@ bool Shape::contains_shape(Shape* s)
 ***********************************************************/
 std::vector<Shape*> Shape::clip(Shape* s)
 {
-  std::cout << "\n\n CLIPPING \n";
   std::vector<Shape*> new_shapes;
 
   if (!s || !complete_ || !s->complete() || s == this)
@@ -255,7 +254,6 @@ std::vector<Shape*> Shape::clip(Shape* s)
   --------------------------------------------------------*/
   int Nt = this->number_of_nodes();
   int Ns = s->number_of_nodes();
-
 
   // Get intersection points and mark them as 
   // entries / exits
@@ -334,11 +332,9 @@ std::vector<Shape*> Shape::clip(Shape* s)
 
         intersecs.push_back(m_ts);
 
-        // Push back indices of line endings,
-        // such that it fits better with vector 
-        // insertion method
-        t_intersec_index.push_back( (i+1) );
-        s_intersec_index.push_back( (j+1) );
+        // Push back indices of line start
+        t_intersec_index.push_back( i ); 
+        s_intersec_index.push_back( j ); 
       }
     }
   }
@@ -354,71 +350,56 @@ std::vector<Shape*> Shape::clip(Shape* s)
   std::vector<int> t_link;
   std::vector<int> s_link;
 
-  // Init with original points
+  // Init with original points and add intersections
   for (int i = 0; i < Nt; ++i)
   {
     t_list.push_back(this->get_node(i)->coords());
     t_intersec.push_back(false);
-  }
 
-  // Add intersection points
-  for (int i = 0; i < intersecs.size(); ++i)
-  {
-    // No modulo operator needed, since t is 
-    // gathered sequentially
-    t_intersec_index[i] += i;
-    t_list.insert(t_list.begin()+t_intersec_index[i],
-                  intersecs[i]);
-    t_intersec.insert(t_intersec.begin()+t_intersec_index[i],
-                      true);
+    for (int j = 0; j < intersecs.size(); ++j)
+      if (t_intersec_index[j] == i)
+      {
+        t_list.push_back(intersecs[j]);
+        t_intersec.push_back(true);
+      }
   }
 
   // Remove duplicates
   for (int i = t_list.size()-1; i >= 0; --i)
-  {
-    int N = t_list.size();
-    int i_next = (N + ((i-1) % N) ) % N;
-    
-    if (t_list[i] == t_list[i_next])
-    {
-      if (t_intersec[i])
-        t_intersec[i_next] = t_intersec[i];
-      t_list.erase(t_list.begin()+i);
-      t_intersec.erase(t_intersec.begin()+i);
-    }
-  }
+    for (int j = i-1; j >= 0; --j)
+      if (t_list[i] == t_list[j])
+      {
+        if (t_intersec[i])
+          t_intersec[j] = t_intersec[i];
+        t_list.erase(t_list.begin()+i);
+        t_intersec.erase(t_intersec.begin()+i);
+      }
 
+
+  // Init with original points and add intersections
   for (int i = 0; i < Ns; ++i)
   {
     s_list.push_back(s->get_node(i)->coords());
     s_intersec.push_back(false);
-  }
 
-  for (int i = 0; i < intersecs.size(); ++i)
-  {
-    // The modulo operator is needed, because s is not 
-    // gathered sequentially (in contrast to t)
-    s_intersec_index[i] = (s_intersec_index[i]+i)%s_list.size();
-    s_list.insert(s_list.begin()+s_intersec_index[i],
-                  intersecs[i]);
-    s_intersec.insert(s_intersec.begin()+s_intersec_index[i],
-                      true);
+    for (int j = 0; j < intersecs.size(); ++j)
+      if (s_intersec_index[j] == i)
+      {
+        s_list.push_back(intersecs[j]);
+        s_intersec.push_back(true);
+      }
   }
 
   // Remove duplicates
   for (int i = s_list.size()-1; i >= 0; --i)
-  {
-    int N = s_list.size();
-    int i_next = (N + ((i-1) % N) ) % N;
-    
-    if (s_list[i] == s_list[i_next])
-    {
-      if (s_intersec[i])
-        s_intersec[i_next] = s_intersec[i];
-      s_list.erase(s_list.begin()+i);
-      s_intersec.erase(s_intersec.begin()+i);
-    }
-  }
+    for (int j = i-1; j >= 0; --j)
+      if (s_list[i] == s_list[j])
+      {
+        if (s_intersec[i])
+          s_intersec[j] = s_intersec[i];
+        s_list.erase(s_list.begin()+i);
+        s_intersec.erase(s_intersec.begin()+i);
+      }
 
   // Create links between lists
   for (int i = 0; i < t_list.size(); ++i)
